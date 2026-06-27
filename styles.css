@@ -234,7 +234,14 @@ h3 {
 }
 
 .drop-zone input {
-  display: none;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: block;
+  margin: 12px auto;
+  max-width: 100%;
+  padding: 8px;
 }
 
 .drop-zone span {

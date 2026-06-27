@@ -1,4 +1,4 @@
-const MODEL_URL = "model/model.json";
+const MODEL_URL = "model/face_model.json";
 const LABELS_URL = "model/labels.json";
 
 const imageInput = document.querySelector("#image-input");
@@ -18,6 +18,7 @@ const duration = document.querySelector("#duration");
 const symptoms = document.querySelector("#symptoms");
 
 let modelReady = false;
+let model = null;
 let labels = [];
 let lastQuality = null;
 
@@ -71,14 +72,15 @@ async function checkModelReadiness() {
     if (!modelResponse.ok || !labelsResponse.ok) {
       throw new Error("Model files missing");
     }
+    model = await modelResponse.json();
     labels = await labelsResponse.json();
     modelReady = true;
     modelStatus.textContent = "Model files detected";
-    modelDetail.textContent = `${labels.length} labels available. Prediction requires TensorFlow.js runtime integration.`;
+    modelDetail.textContent = `${labels.length} SCIN face/head labels loaded. Research prototype only.`;
   } catch (_error) {
     modelReady = false;
     modelStatus.textContent = "No trained model installed";
-    modelDetail.textContent = "Add real exported files to model/model.json and model/labels.json to enable predictions.";
+    modelDetail.textContent = "Add real exported files to model/face_model.json and model/labels.json to enable predictions.";
   }
 }
 
@@ -103,9 +105,10 @@ function analyzeImage(image, file) {
   drawImage(image);
   const metrics = computeQualityMetrics();
   lastQuality = metrics;
+  const prediction = modelReady ? classifyCanvas() : null;
   renderQuality(metrics, file);
-  renderSummary(buildSummaryCards(metrics));
-  renderXai();
+  renderSummary(buildSummaryCards(metrics, prediction));
+  renderXai(prediction);
   renderQuestions(metrics);
 }
 
@@ -212,7 +215,7 @@ function qualityStatus(brightness, contrast, sharpness, skinRatio) {
   return issues;
 }
 
-function buildSummaryCards(metrics) {
+function buildSummaryCards(metrics, prediction) {
   const cards = [];
   if (metrics.status.length) {
     cards.push(card("warn", "Image needs review", `Quality concerns: ${metrics.status.join(", ")}. Retake the photo before trusting any model output.`, "Quality"));
@@ -221,7 +224,19 @@ function buildSummaryCards(metrics) {
   }
 
   if (modelReady) {
-    cards.push(card("warn", "Model files detected", "A real model appears installed, but this UI still needs final runtime validation before clinical use.", "Model"));
+    if (prediction) {
+      const top = prediction[0];
+      cards.push(
+        card(
+          "warn",
+          `Detector signal: ${top.label}`,
+          `${Math.round(top.score * 100)}% relative match from a tiny real SCIN face/head centroid model. This is not diagnosis.`,
+          "Real-data model"
+        )
+      );
+    } else {
+      cards.push(card("warn", "Model files detected", "The model exists, but prediction could not be computed for this image.", "Model"));
+    }
   } else {
     cards.push(card("neutral", "Prediction locked", "No trained model artifact is installed, so the app will not invent disease categories.", "Model"));
   }
@@ -245,7 +260,7 @@ function renderSummary(cards) {
   summaryCards.innerHTML = cards.map(renderCard).join("");
 }
 
-function renderXai() {
+function renderXai(prediction) {
   const heatContext = heatmapCanvas.getContext("2d");
   heatContext.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
 
@@ -256,9 +271,143 @@ function renderXai() {
     return;
   }
 
+  drawPatchHeatmap();
   xaiCards.innerHTML = renderCard(
-    card("warn", "Model detected, XAI pending", "The next engineering step is TensorFlow.js saliency or Grad-CAM export validation against the trained model.", "XAI")
+    card(
+      "warn",
+      "Patch heatmap generated",
+      `Overlay highlights facial regions with stronger redness/texture signals for the top model class${prediction?.[0] ? ` (${prediction[0].label})` : ""}. This is explanatory support, not proof of disease.`,
+      "XAI"
+    )
   );
+}
+
+function classifyCanvas() {
+  if (!model?.centroids || !model?.featureMean || !model?.featureStd) {
+    return null;
+  }
+  const features = extractFeatureVectorFromCanvas(imageCanvas);
+  const normalized = features.map((value, index) => (value - model.featureMean[index]) / model.featureStd[index]);
+  const distances = model.labels.map((label) => ({
+    label,
+    distance: euclidean(normalized, model.centroids[label]),
+    count: model.classCounts?.[label] || 0,
+  }));
+  const maxDistance = Math.max(...distances.map((item) => item.distance), 1);
+  return distances
+    .map((item) => ({ ...item, score: Math.max(0, 1 - item.distance / maxDistance) }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function extractFeatureVectorFromCanvas(canvas) {
+  const sample = document.createElement("canvas");
+  sample.width = 160;
+  sample.height = 160;
+  const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+  sampleContext.drawImage(canvas, 0, 0, 160, 160);
+  const data = sampleContext.getImageData(0, 0, 160, 160).data;
+  const channels = makeChannels(data, 160, 160);
+  const features = [];
+  [channels.r, channels.g, channels.b, channels.gray, channels.redness, channels.texture].forEach((channel) => {
+    features.push(mean(channel), std(channel), percentile(channel, 25), percentile(channel, 75));
+  });
+  [channels.redness, channels.texture, channels.gray].forEach((channel) => {
+    for (let y = 0; y < 4; y += 1) {
+      for (let x = 0; x < 4; x += 1) {
+        features.push(gridMean(channel, 160, x * 40, y * 40, 40, 40));
+      }
+    }
+  });
+  return features;
+}
+
+function makeChannels(data, width, height) {
+  const r = [];
+  const g = [];
+  const b = [];
+  const gray = [];
+  const redness = [];
+  for (let i = 0; i < data.length; i += 4) {
+    const rv = data[i] / 255;
+    const gv = data[i + 1] / 255;
+    const bv = data[i + 2] / 255;
+    r.push(rv);
+    g.push(gv);
+    b.push(bv);
+    gray.push((rv + gv + bv) / 3);
+    redness.push(Math.max(0, rv - (gv + bv) / 2));
+  }
+  const texture = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const idx = y * width + x;
+      const left = gray[y * width + Math.max(0, x - 1)];
+      const right = gray[y * width + Math.min(width - 1, x + 1)];
+      const up = gray[Math.max(0, y - 1) * width + x];
+      const down = gray[Math.min(height - 1, y + 1) * width + x];
+      texture.push(Math.min(1, Math.abs(right - left) + Math.abs(down - up)));
+    }
+  }
+  return { r, g, b, gray, redness, texture };
+}
+
+function drawPatchHeatmap() {
+  const heatContext = heatmapCanvas.getContext("2d");
+  const sample = document.createElement("canvas");
+  sample.width = 160;
+  sample.height = 160;
+  const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+  sampleContext.drawImage(imageCanvas, 0, 0, 160, 160);
+  const data = sampleContext.getImageData(0, 0, 160, 160).data;
+  const channels = makeChannels(data, 160, 160);
+  heatContext.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
+
+  for (let y = 0; y < 8; y += 1) {
+    for (let x = 0; x < 8; x += 1) {
+      const rednessScore = gridMean(channels.redness, 160, x * 20, y * 20, 20, 20);
+      const textureScore = gridMean(channels.texture, 160, x * 20, y * 20, 20, 20);
+      const score = Math.min(1, rednessScore * 2.2 + textureScore * 1.2);
+      if (score < 0.12) continue;
+      heatContext.fillStyle = `rgba(255, 64, 32, ${0.12 + score * 0.5})`;
+      heatContext.fillRect(x * 90, y * 70, 90, 70);
+    }
+  }
+}
+
+function euclidean(a, b) {
+  let sum = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    const diff = a[i] - b[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+function mean(values) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function std(values) {
+  const avg = mean(values);
+  return Math.sqrt(values.reduce((sum, value) => sum + (value - avg) ** 2, 0) / values.length);
+}
+
+function percentile(values, pct) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.round((pct / 100) * (sorted.length - 1))));
+  return sorted[index];
+}
+
+function gridMean(channel, width, startX, startY, patchWidth, patchHeight) {
+  let total = 0;
+  let count = 0;
+  for (let y = startY; y < startY + patchHeight; y += 1) {
+    for (let x = startX; x < startX + patchWidth; x += 1) {
+      total += channel[y * width + x];
+      count += 1;
+    }
+  }
+  return total / count;
 }
 
 function renderQuestions(metrics) {
