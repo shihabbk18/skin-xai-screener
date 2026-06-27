@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="FaceSkin Lens is a face-only skin pre-screening interface prepared for real dermatology datasets, model evidence, and explainable AI overlays."
+    />
+    <meta name="theme-color" content="#101a1f" />
+    <title>FaceSkin Lens | Facial Skin XAI Screener</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=1" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="FaceSkin Lens">
+        <span>FL</span>
+        <strong>FaceSkin Lens</strong>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#screen">Screen</a>
+        <a href="#data">Data</a>
+        <a href="#safety">Safety</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Face-only dermatology pre-screening</p>
+          <h1>
+            <span>Facial skin review</span>
+            <span>with explainable AI.</span>
+          </h1>
+          <p class="lede">
+            Upload a face image. The app checks image quality and model readiness, then prepares a
+            clinician-style pre-screening workspace. Predictions appear only when a real trained
+            facial skin model is installed.
+          </p>
+        </div>
+        <aside class="status-panel">
+          <div class="status-line">
+            <span class="dot"></span>
+            <div>
+              <strong id="model-status">Checking model</strong>
+              <p id="model-detail">Looking for model/model.json and model/labels.json.</p>
+            </div>
+          </div>
+          <div class="scope-list">
+            <article>
+              <span>Scope</span>
+              <strong>Face only</strong>
+            </article>
+            <article>
+              <span>Output</span>
+              <strong>Pre-screening support</strong>
+            </article>
+            <article>
+              <span>XAI</span>
+              <strong>Heatmap only with model</strong>
+            </article>
+          </div>
+        </aside>
+      </section>
+
+      <section class="screen-shell" id="screen">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Screening workspace</p>
+            <h2>
+              <span>Upload a clear face image.</span>
+              <span>Review evidence before action.</span>
+            </h2>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <section class="upload-panel">
+            <label class="drop-zone" for="image-input" id="drop-zone">
+              <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" />
+              <span>Upload face image</span>
+              <strong>JPG, PNG, or WEBP</strong>
+              <em>No image leaves this browser in the static app.</em>
+            </label>
+
+            <div class="context-grid">
+              <label>
+                Age group
+                <select id="age-group">
+                  <option value="">Unknown</option>
+                  <option value="child">Child</option>
+                  <option value="teen">Teen</option>
+                  <option value="adult">Adult</option>
+                  <option value="older">Older adult</option>
+                </select>
+              </label>
+              <label>
+                Main concern
+                <select id="concern">
+                  <option value="">Unknown</option>
+                  <option value="acne">Acne-like bumps</option>
+                  <option value="redness">Redness/flushing</option>
+                  <option value="pigment">Dark/light patches</option>
+                  <option value="rash">Rash/irritation</option>
+                  <option value="lesion">Mole/spot/lesion</option>
+                </select>
+              </label>
+              <label>
+                Duration
+                <select id="duration">
+                  <option value="">Unknown</option>
+                  <option value="acute">Less than 7 days</option>
+                  <option value="subacute">1-6 weeks</option>
+                  <option value="chronic">More than 6 weeks</option>
+                </select>
+              </label>
+              <label>
+                Symptoms
+                <input id="symptoms" type="text" placeholder="itching, pain, bleeding, fever..." />
+              </label>
+            </div>
+          </section>
+
+          <section class="review-panel">
+            <div class="image-stage" id="image-stage">
+              <canvas id="image-canvas" width="720" height="560"></canvas>
+              <canvas id="heatmap-canvas" width="720" height="560"></canvas>
+              <div class="empty-state" id="empty-state">
+                <strong>No image selected</strong>
+                <p>Upload a face photo to run quality and readiness checks.</p>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <button class="tab active" type="button" data-tab="summary">Summary</button>
+              <button class="tab" type="button" data-tab="quality">Quality</button>
+              <button class="tab" type="button" data-tab="xai">XAI</button>
+              <button class="tab" type="button" data-tab="questions">Questions</button>
+            </div>
+
+            <div class="tab-panel active" id="summary-panel">
+              <div class="cards" id="summary-cards">
+                <article class="card neutral">
+                  <span>Waiting</span>
+                  <strong>No facial image analyzed yet</strong>
+                  <p>The app will not produce disease categories until a real model is installed.</p>
+                </article>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="quality-panel">
+              <div class="cards" id="quality-cards"></div>
+            </div>
+
+            <div class="tab-panel" id="xai-panel">
+              <div class="cards" id="xai-cards">
+                <article class="card neutral">
+                  <span>Model required</span>
+                  <strong>No heatmap generated</strong>
+                  <p>XAI overlays require a trained model artifact and saliency support.</p>
+                </article>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="questions-panel">
+              <ol class="questions" id="questions">
+                <li>Upload an image to generate context-specific dermatologist questions.</li>
+              </ol>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="info-section" id="data">
+        <div>
+          <p class="eyebrow">Real-data training path</p>
+          <h2>
+            <span>Designed for SCIN</span>
+            <span>and Fitzpatrick17k.</span>
+          </h2>
+        </div>
+        <div class="info-grid">
+          <article>
+            <span>SCIN</span>
+            <h3>Real-world skin images</h3>
+            <p>
+              Google Research's SCIN dataset contains user-contributed dermatology images with
+              dermatologist labels and skin-tone metadata. Filter face/head locations only.
+            </p>
+          </article>
+          <article>
+            <span>Fitzpatrick17k</span>
+            <h3>Clinical images and skin type</h3>
+            <p>
+              A public dermatology benchmark with Fitzpatrick skin type annotations. Use only
+              face-relevant classes/images after manual filtering.
+            </p>
+          </article>
+          <article>
+            <span>No fake output</span>
+            <h3>Model-gated predictions</h3>
+            <p>
+              The browser app refuses to show disease probabilities if the trained model files are
+              absent.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="safety-section" id="safety">
+        <div>
+          <p class="eyebrow">Safety boundary</p>
+          <h2>
+            <span>Screening support.</span>
+            <span>Not diagnosis.</span>
+          </h2>
+        </div>
+        <div class="safety-copy">
+          <p>
+            Seek urgent medical care for facial swelling with breathing trouble, rapidly spreading
+            infection, fever with rash, eye involvement, severe pain, uncontrolled bleeding, or a
+            rapidly changing dark lesion.
+          </p>
+          <p>
+            Phone photos vary by lighting, skin tone, camera quality, makeup, and angle. A real
+            model still needs clinical validation before use outside research or supervised triage.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>FaceSkin Lens</span>
+      <span>Face-only XAI pre-screening scaffold</span>
+    </footer>
+
+    <script src="script.js?v=1"></script>
+  </body>
+</html>

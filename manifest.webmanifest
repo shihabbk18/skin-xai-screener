@@ -1,0 +1,16 @@
+{
+  "name": "FaceSkin Lens",
+  "short_name": "FaceSkin",
+  "description": "Face-only skin pre-screening scaffold for real-data XAI dermatology models.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f4",
+  "theme_color": "#101a1f",
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
